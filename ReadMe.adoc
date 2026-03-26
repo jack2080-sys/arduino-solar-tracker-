@@ -1,0 +1,110 @@
+= Solar Tracking System with IoT Monitoring
+
+:Author: Jack Hayes
+:Email: [jackhayes2080@gmail.com](mailto:jackhayes2080@gmail.com)
+:Date: 14/03/2026
+:Revision: Version 1.0
+:License: Public Domain
+
+== 🌞 Project Overview
+
+This project is an automated **solar tracking system** that continuously adjusts its position based on light intensity detected by four LDR sensors.
+
+The system uses:
+
+* 🔼 A **servo motor** for vertical movement
+
+* 🔄 A **stepper motor** for horizontal tracking
+
+* ☁️ **Arduino IoT Cloud** for monitoring and control
+
+*Key Features:*
+
+* ✔ Dual-axis solar tracking
+* ✔ Real-time IoT monitoring
+* ✔ Non-blocking control using `millis()`
+* ✔ Automatic standby (low-light detection)
+* ✔ Integrated pH sensing
+
+== ⚙️ Step 1: Installation
+
+1. Install the **Arduino IDE**
+
+2. Install required libraries:
+
+   * Servo.h
+   * ArduinoIoTCloud
+   * WiFi (board-specific)
+
+3. Download or clone this project
+
+4. Open the `.ino` file in Arduino IDE
+
+== 🔌 Step 2: Assemble the Circuit
+
+Follow the schematic and layout images provided.
+
+*Connections:*
+
+* LDR Sensors → A2, A3, A4, A5
+* pH Sensor → A1
+* Servo Motor → Pin 5
+* Stepper Driver (A4988):
+
+  * DIR → Pin 2
+
+  * STEP → Pin 3
+
+  * ENABLE → Pin 4
+
+⚠ Ensure **all components share a common ground**
+
+== ⬆️ Step 3: Upload the Code
+
+1. Select correct board + port
+2. Upload the sketch
+3. Open Serial Monitor
+4. Connect to Arduino IoT Cloud dashboard
+
+== 🧠 System Operation
+
+* Sensors update every **500 ms**
+* Motors adjust every **50 ms**
+* Deadband prevents jitter
+* System enters standby in low light
+
+== 📁 Folder Structure
+
+....
+SolarTracker
+├── SolarTracker.ino
+├── schematics.png
+├── layout.png
+└── ReadMe.adoc
+....
+
+== 🧾 Bill of Materials (BOM)
+
+|===
+| ID | Part Name                | Quantity
+| A1 | Arduino (IoT compatible) | 1
+| S1 | Servo Motor              | 1
+| M1 | Stepper Motor            | 1
+| D1 | A4988 Driver             | 1
+| L1 | LDR Sensors              | 4
+| R1 | 10kΩ Resistors           | 4
+| P1 | pH Sensor Module         | 1
+| PS | Power Supply             | 1
+|===
+
+== 📜 License
+
+Public Domain
+
+== 🤝 Contributing
+
+For questions or contributions:
+
+📧 [jackhayes2080@gmail.com](mailto:jackhayes2080@gmail.com)
+
+
