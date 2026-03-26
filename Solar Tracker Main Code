@@ -1,0 +1,300 @@
+ /* 
+
+  Arduino IoT Cloud Variables description
+
+  The following variables are automatically generated and updated when changes are made to the Thing
+
+  String System_State;
+  float Avg_Light;
+  float horiz_diff;
+  float Light_Sensor1;
+  float Light_Sensor2;
+  float Light_Sensor3;
+  float Light_Sensor4;
+  float Light_tolerance;
+  float PH_Volt;
+  float Servo_step;
+  float Servo_Step_Count;
+  float Stepper_Step_Count;
+  float vert_diff;
+  float Water_PH;
+  bool status;
+
+  Variables which are marked as READ/WRITE in the Cloud Thing will also have functions
+  which are called when their values are changed from the Dashboard.
+  These functions are generated with the Thing and added at the end of this sketch.
+*/
+
+#include "thingProperties.h" 
+#include <Servo.h> // servo library 
+
+// ======== motor and sensor pin definitions ========
+#define SERVOMOTOR 5 
+// connect servo motor to digital pin 5
+#define PH_SENSOR A1 
+// connect PH_sensor to analog pin 1
+#define SL_1 A2 
+// toip left ^^ 
+#define SL_2 A3 
+// top right ^^
+#define SL_3 A4 
+// bottom left ^^
+#define SL_4 A5 
+//bottom right ^^ 
+
+// motor driver pin connections 
+// motor driver A4 driver 
+#define dirPin 2 
+// connect A489 driver direction pin to digital pin 2 , use this: https://racheldebarros.com/control-nema17-with-a4988-arduino-wiring-and-code-guide/ for pin out guide 
+#define stepPin 3 
+// connect A489 driver step pin to digital pin 3
+#define EN 4 
+// connect A489 driver Enable pin to digital pin 4 
+#define CLOCKWISE true 
+#define COUNTERCLOCKWISE false
+
+// ======== starting servo positions  ======== 
+
+int servovert = 45;   // Initial vertical angle 
+
+int servoLimitHigh= 100; // the max angle the servo can tilt
+
+int servoLimitLow= 1; // min angle the servo can tilt 
+
+//int deadband = 5 ; // deadband values stops jitter of motors so motors are constantly adjusting 
+
+Servo myservo; 
+
+float calibration_value = -3.4755; // neelum change this 
+
+unsigned long sensorTimer = 0;  // used for the delay function for gettin the sensor readings
+
+unsigned long servo_motorTimer = 0; // used for the delay function for gettin turning the servo motor 
+
+unsigned long step_motorTimer= 0;
+
+void setup() {
+  // Initialize serial and wait for port to open:
+  Serial.begin(9600);
+  // This delay gives the chance to wait for a Serial Monitor without blocking if none is found
+  delay(1500); 
+
+  // Defined in thingProperties.h
+  initProperties();
+
+  // Connect to Arduino IoT Cloud
+  ArduinoCloud.begin(ArduinoIoTPreferredConnection);
+  
+  /*
+     The following function allows you to obtain more information
+     related to the state of network and IoT Cloud connection and errors
+     the higher number the more granular information you’ll get.
+     The default is 0 (only errors).
+     Maximum is 4
+ */
+  setDebugMessageLevel(2); 
+  
+  ArduinoCloud.printDebugInfo(); 
+
+  myservo.attach(SERVOMOTOR);  
+
+  myservo.write(servovert); // putting the servo at a initial vertical angle 
+
+  pinMode(dirPin,OUTPUT);
+  
+  pinMode(stepPin,OUTPUT); 
+
+  pinMode(EN,OUTPUT); 
+  
+}
+
+void loop() { 
+  
+  ArduinoCloud.update(); 
+
+    if (!status) { 
+    
+     System_State = "The System is off ";  
+    
+    digitalWrite(EN,HIGH); // turn stepper motor off  
+    
+  }
+
+  else if (status) { // run this if statment if the status boolean varible is equal to true
+
+    System_State = "The System is on"; 
+
+    digitalWrite(EN,LOW); // turn stepper motor on 
+
+    if (waitInterval(2000,sensorTimer)) {
+
+      // get the average reading for each sensor - PH and light 
+
+      Light_Sensor1 = readAverage(SL_1);  // get avg light value of Top Left light sensor 
+  
+      Light_Sensor2 = readAverage(SL_2);  // get avg light value of Top Right light sensor 
+  
+      Light_Sensor3 = readAverage(SL_3);  // get avg light value of Bottom Left light sensor 
+  
+      Light_Sensor4  = readAverage(SL_4);  // get avg light value of Bottom Right light sensor 
+  
+      PH_Volt = readAverage(PH_SENSOR) * 5.0 / 1024;// Convert to ph sensor reading to Volts
+
+      Water_PH = 3.5 * PH_Volt + calibration_value; // convert the PH sensor Voltage reading to a PH value 
+      
+      } 
+  
+    Avg_Light = (Light_Sensor1 + Light_Sensor2 + Light_Sensor3 + Light_Sensor4) / 4.0; // Calculate total average light
+    
+   // Night Mode activation - checks if there is a low avg light if there is then system goes on standbuy
+    
+   if (Avg_Light < 200) {  
+      
+      System_State = "Low light detected — Solar Tracker System on standby"; 
+    
+      return;  // the return here stops the code below from running and returns to the start of void loop 
+    } 
+    
+   // Get averages of sensor quadrants 
+    
+    int avg_top = avg_quad(Light_Sensor1,Light_Sensor2);  // average of top sensors 
+  
+    int avg_bottom= avg_quad(Light_Sensor3,Light_Sensor4);  // average of bottom sensors 
+  
+    int avg_left = avg_quad(Light_Sensor1,Light_Sensor3); // average of left sensors 
+  
+    int avg_right = avg_quad(Light_Sensor2,Light_Sensor4);  // average of right sensors 
+
+  
+    // ======== Calculate Average Differences ======== 
+    
+    vert_diff = abs(avg_top - avg_bottom);   // vertical difference , coil order - black and green , blue and red 
+  
+    horiz_diff = abs(avg_left - avg_right);  // horizontal difference 
+
+  // ======== Vertical Adjustment ========  
+
+    if (waitInterval(1500,servo_motorTimer)) {
+    
+      if (vert_diff > Light_tolerance ) {
+    
+        if (avg_top > avg_bottom) { 
+      
+          servovert = servovert + Servo_step; 
+    
+          } 
+      
+        else servovert = servovert- Servo_step;
+
+        servovert = constrain(servovert, servoLimitLow, servoLimitHigh); // forces servovert value to stay within high angle limit and low angle limit range. 
+    
+        myservo.write(servovert);
+      } 
+    } 
+
+  // ======== Horizontal Adjustment ========  
+
+    if (waitInterval(50,step_motorTimer)) {
+    
+      if (horiz_diff > Light_tolerance) {
+    
+        if (avg_left > avg_right) { 
+      
+          stepMotor(CLOCKWISE); 
+      
+          }   
+      
+        else { 
+      
+          stepMotor(COUNTERCLOCKWISE); 
+      
+          }
+    
+        } 
+      
+    }
+  
+  } 
+  
+}
+
+int readAverage(int pin) {  // function that gets avg reading of sensor 
+	
+  long total = 0;  
+	 
+  for (int i = 0; i < 10; i++) {  // take the sensor reading 10 times 
+	  
+    total = total + analogRead(pin);  // add each reading to a running total
+	   
+    //delay(2);
+	 
+  }  
+	 
+  return total / 10;  // divide the total of 10 readings by 10 to get the avg reading of the sensor
+  
+} 
+
+void stepMotor(bool direction) { 
+  
+  digitalWrite(dirPin, direction); 
+  
+  digitalWrite(stepPin, HIGH); 
+  
+  delayMicroseconds(5000); 
+  
+  digitalWrite(stepPin, LOW); 
+  
+  delayMicroseconds(5000); 
+  
+} 
+
+int avg_quad(int a, int b) { 
+  
+  return (a + b) / 2; 
+  
+}
+
+bool waitInterval(unsigned long interval, unsigned long &lastTime) { 
+  
+  if (millis() - lastTime >= interval) { 
+    
+    lastTime = millis(); 
+    
+    return true; 
+    
+  } 
+  
+  return false; 
+  
+}
+
+
+/*
+  Since LightTolerance is READ_WRITE variable, onLightToleranceChange() is
+  executed every time a new value is received from IoT Cloud.
+*/
+void onLightToleranceChange()  { 
+  
+  Serial.println("New light tolerance: " + String(Light_tolerance)); 
+  
+}
+
+/*
+  Since ServoStep is READ_WRITE variable, onServoStepChange() is
+  executed every time a new value is received from IoT Cloud.
+*/
+void onServoStepChange()  { 
+  
+  Serial.println("New servo step: " + String(Servo_step)); 
+
+}
+
+/*
+  Since Status is READ_WRITE variable, onStatusChange() is
+  executed every time a new value is received from IoT Cloud.
+*/
+void onStatusChange()  { 
+  
+Serial.println("Switch value: " + String(status)); 
+  
+}
