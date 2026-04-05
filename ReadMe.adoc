@@ -92,7 +92,7 @@ SolarTracker
 | M1 | Stepper Motor            | 1
 | D1 | A4988 Driver             | 1
 | L1 | LDR Sensors              | 4
-| R1 | 10kΩ Resistors           | 4
+| R1 | 5.6kΩ Resistors           | 4
 | P1 | pH Sensor Module         | 1
 | PS | Power Supply             | 1
 |===
