@@ -1,0 +1,136 @@
+// Camera webserver code by Jack Hayes
+
+#include "esp_camera.h"   // Library for ESP32 camera control
+#include <WiFi.h>         // Library for WiFi connectivity
+
+// Select camera model
+#define CAMERA_MODEL_WROVER_KIT  // Specifies ESP32 board with PSRAM
+#include "camera_pins.h"         // Includes pin definitions for the camera
+
+const char *ssid = "iPhone (186)";
+const char *password = "shrek456";    // WiFi password
+
+void startCameraServer();  // Function prototype for starting the web server
+
+void setup() {
+  Serial.begin(115200);            // Initialize serial communication at 115200 baud
+  Serial.setDebugOutput(true);     // Enable debug output
+  Serial.println();                // Print empty line for readability
+
+  camera_config_t config;          // Create camera configuration structure
+
+  // Assign hardware timer and channel for camera clock
+  config.ledc_channel = LEDC_CHANNEL_0;
+  config.ledc_timer = LEDC_TIMER_0;
+
+  // Assign GPIO pins for camera data lines
+  config.pin_d0 = Y2_GPIO_NUM;
+  config.pin_d1 = Y3_GPIO_NUM;
+  config.pin_d2 = Y4_GPIO_NUM;
+  config.pin_d3 = Y5_GPIO_NUM;
+  config.pin_d4 = Y6_GPIO_NUM;
+  config.pin_d5 = Y7_GPIO_NUM;
+  config.pin_d6 = Y8_GPIO_NUM;
+  config.pin_d7 = Y9_GPIO_NUM;
+
+  // Assign control pins for camera signals
+  config.pin_xclk = XCLK_GPIO_NUM;     // External clock
+  config.pin_pclk = PCLK_GPIO_NUM;     // Pixel clock
+  config.pin_vsync = VSYNC_GPIO_NUM;   // Vertical sync
+  config.pin_href = HREF_GPIO_NUM;     // Horizontal reference
+
+  // Assign SCCB (camera communication bus) pins
+  config.pin_sccb_sda = SIOD_GPIO_NUM;
+  config.pin_sccb_scl = SIOC_GPIO_NUM;
+
+  // Power-down and reset pins
+  config.pin_pwdn = PWDN_GPIO_NUM;
+  config.pin_reset = RESET_GPIO_NUM;
+
+  config.xclk_freq_hz = 10000000;      // Set camera clock frequency (10 MHz)
+  config.pixel_format = PIXFORMAT_JPEG; // Use JPEG image format
+
+  // ======== Improved Quality Settings ========
+  if (psramFound()) {
+    config.frame_size = FRAMESIZE_QVGA;   // Set resolution (note: QVGA = 320x240)
+    config.jpeg_quality = 8;              // Lower value = higher image quality
+    config.fb_count = 2;                  // Use 2 frame buffers for smoother streaming
+  } else {
+    config.frame_size = FRAMESIZE_QVGA;   // Lower resolution if no PSRAM
+    config.jpeg_quality = 10;             // Slightly lower quality
+    config.fb_count = 1;                  // Single frame buffer
+  }
+
+  // ======== Init Camera ========
+  esp_err_t err = esp_camera_init(&config); // Initialize camera with configuration
+  if (err != ESP_OK) {                      // Check if initialization failed
+    Serial.printf("Camera init failed: 0x%x\n", err); // Print error code
+    return;                                 // Stop execution if camera fails
+  }
+
+  sensor_t * s = esp_camera_sensor_get(); // Get pointer to camera sensor settings
+
+  // ======== Image Orientation Fix ========
+  s->set_vflip(s, 0);     // Flip image vertically
+  s->set_hmirror(s, 1);   // Mirror image horizontally
+
+  // ======== Image Quality Tuning ========
+  s->set_brightness(s, 1);   // Adjust brightness (-2 to 2)
+  s->set_contrast(s, 1);     // Adjust contrast (-2 to 2)
+  s->set_saturation(s, 1);   // Adjust color saturation (-2 to 2)
+  s->set_sharpness(s, 1);    // Adjust sharpness (0 to 3)
+
+  // ======== Exposure & Gain ========
+  s->set_exposure_ctrl(s, 1); // Enable automatic exposure control
+  s->set_aec2(s, 1);          // Enable advanced exposure algorithm
+  s->set_gain_ctrl(s, 1);     // Enable automatic gain control
+
+  // ======== White Balance ========
+  s->set_whitebal(s, 1);      // Enable white balance
+  s->set_awb_gain(s, 1);      // Enable auto white balance gain
+
+  // ======== Lens Correction ========
+  s->set_lenc(s, 1);          // Enable lens distortion correction
+
+  // ======== Non-blocking WiFi connect ========
+  WiFi.begin(ssid, password); // Start connecting to WiFi
+
+  Serial.print("Connecting to WiFi");
+  unsigned long startAttemptTime = millis(); // Record start time
+
+  // Try to connect for up to 10 seconds
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+    delay(300);               // Wait 300 ms between checks
+    Serial.print(".");        // Print progress dots
+  }
+
+  // Check connection result
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nWiFi FAILED"); // Connection failed
+  } else {
+    Serial.println("\nWiFi connected"); // Connection successful
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());     // Print assigned IP address
+  }
+
+  // ======== Start Camera Server ========
+  startCameraServer();  // Launch web server for video streaming
+
+  Serial.println("Camera Ready!"); // Indicate system is ready
+}
+
+// ======== Non-blocking loop ========
+void loop() {
+  // Main loop left free for future features like:
+  // - Image processing
+  // - Sensor integration
+  // - Communication systems
+
+  static unsigned long lastPrint = 0; // Store last print time
+
+  // Print status every 5 seconds
+  if (millis() - lastPrint > 5000) {
+    lastPrint = millis();
+    Serial.println("System running...");
+  }
+}
